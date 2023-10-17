@@ -3,11 +3,14 @@
 namespace Shopware\Core\Checkout\Cart\Rule;
 
 use Shopware\Core\Checkout\Cart\LineItem\LineItem;
+use Shopware\Core\Framework\App\Manifest\Xml\CustomFieldTypes\MultiEntitySelectField;
+use Shopware\Core\Framework\App\Manifest\Xml\CustomFieldTypes\MultiSelectField;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Rule\Exception\UnsupportedOperatorException;
 use Shopware\Core\Framework\Rule\Rule;
 use Shopware\Core\Framework\Rule\RuleComparison;
 use Shopware\Core\Framework\Rule\RuleScope;
+use Shopware\Core\Framework\Util\FloatComparator;
 use Shopware\Core\System\CustomField\CustomFieldTypes;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Constraints\Choice;
@@ -108,6 +111,14 @@ class LineItemCustomFieldRule extends Rule
             return false;
         }
 
+        if (self::isFloat($this->renderedField)) {
+            return self::floatMatch($this->operator, (float) $actual, (float) $expected);
+        }
+
+        if (self::isArray($this->renderedField)) {
+            return self::arrayMatch($this->operator, (array) $actual, (array) $expected);
+        }
+
         return match ($this->operator) {
             self::OPERATOR_NEQ => $actual !== $expected,
             self::OPERATOR_GTE => $actual >= $expected,
@@ -116,6 +127,28 @@ class LineItemCustomFieldRule extends Rule
             self::OPERATOR_GT => $actual > $expected,
             self::OPERATOR_LT => $actual < $expected,
             default => throw new UnsupportedOperatorException($this->operator, self::class),
+        };
+    }
+
+    private static function floatMatch(string $operator, float $actual, float $expected): bool
+    {
+        return match ($operator) {
+            Rule::OPERATOR_NEQ => FloatComparator::notEquals($actual, $expected),
+            Rule::OPERATOR_GTE => FloatComparator::greaterThanOrEquals($actual, $expected),
+            Rule::OPERATOR_LTE => FloatComparator::lessThanOrEquals($actual, $expected),
+            Rule::OPERATOR_EQ => FloatComparator::equals($actual, $expected),
+            Rule::OPERATOR_GT => FloatComparator::greaterThan($actual, $expected),
+            Rule::OPERATOR_LT => FloatComparator::lessThan($actual, $expected),
+            default => throw new UnsupportedOperatorException($operator, self::class),
+        };
+    }
+
+    private static function arrayMatch(string $operator, array $actual, array $expected): bool
+    {
+        return match ($operator) {
+            Rule::OPERATOR_NEQ => \count(array_intersect($actual, $expected)) === 0,
+            Rule::OPERATOR_EQ => \count(array_intersect($actual, $expected)) > 0,
+            default => throw new UnsupportedOperatorException($operator, self::class),
         };
     }
 
@@ -173,5 +206,37 @@ class LineItemCustomFieldRule extends Rule
         }
 
         return $renderedFieldValue;
+    }
+
+    /**
+     * @param array<string, string> $renderedField
+     */
+    private static function isFloat(array $renderedField): bool
+    {
+        return $renderedField['type'] === CustomFieldTypes::FLOAT;
+    }
+
+    /**
+     * @param array<string, string> $renderedField
+     */
+    private static function isArray(array $renderedField): bool
+    {
+        if ($renderedField['type'] !== CustomFieldTypes::SELECT) {
+            return false;
+        }
+
+        if (!\array_key_exists('componentName', $renderedField['config'])) {
+            return false;
+        }
+
+        if ($renderedField['config']['componentName'] === MultiSelectField::COMPONENT_NAME) {
+            return true;
+        }
+
+        if ($renderedField['config']['componentName'] === MultiEntitySelectField::COMPONENT_NAME) {
+            return true;
+        }
+
+        return false;
     }
 }

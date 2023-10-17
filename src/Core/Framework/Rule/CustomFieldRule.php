@@ -99,8 +99,8 @@ class CustomFieldRule
     private static function arrayMatch(string $operator, array $actual, array $expected): bool
     {
         return match ($operator) {
-            Rule::OPERATOR_NEQ => count(array_intersect($actual, $expected)) === 0,
-            Rule::OPERATOR_EQ => count(array_intersect($actual, $expected)) > 0,
+            Rule::OPERATOR_NEQ => \count(array_intersect($actual, $expected)) === 0,
+            Rule::OPERATOR_EQ => \count(array_intersect($actual, $expected)) > 0,
             default => throw new UnsupportedOperatorException($operator, self::class),
         };
     }
@@ -183,7 +183,7 @@ class CustomFieldRule
             return false;
         }
 
-        if (!array_key_exists('componentName', $renderedField['config'])) {
+        if (!\array_key_exists('componentName', $renderedField['config'])) {
             return false;
         }
 
